@@ -217,7 +217,7 @@ fitPeaks = function(t,y,numPeaks){
 # rt1 = retention time compound 1
 # rt2 = retention time compound 2
 # w1 = half-width compound 1
-# wé = half-width compound 2
+# wÃ© = half-width compound 2
 res = function(rt1, rt2, w1, w2){
   resolution = 1.18*(rt2 - rt1)/(w2 + w1)
   return(resolution)
@@ -253,7 +253,7 @@ setwd("C:/Users/emery/OneDrive - KU Leuven/R scripts/Peak detection")
 
 ## load data ##
 filenames = c("DS.arw", "Mix.arw", "Blank.arw")
-chrom_PDA = combineChroms(".", filenames)
+chrom_PDA = combineChroms("./data", filenames)
 #plot chrom
 plot(rowMeans(chrom_PDA), type = 'l') 
 
