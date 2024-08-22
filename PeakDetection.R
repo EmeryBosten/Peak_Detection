@@ -8,12 +8,13 @@ library(ggplot2)
 library(reshape2)
 library(pracma)
 library(Matrix)
+library(openxlsx)
 
 ###############
 ## FUNCTIONS ##
 ###############
 
-#' Read arw file as data.frame
+#' Read arw or csv file as data.frame
 #' 
 #' @param path character, path to file
 #' @return data.frame 
@@ -22,7 +23,11 @@ library(Matrix)
 #' @export
 readFile = function(path){
   
-  data = read.table(path, skip = 2, sep = "")
+  if (grepl(".arw",path)){
+    data = read.table(path, skip = 2, sep = "")
+  } else {
+    data = read.table(path, sep = ",")
+  }
   
   return(data)  
 }
@@ -37,13 +42,12 @@ readFile = function(path){
 #' @author Emery Bosten, smathieu
 #' @export
 combineChroms = function(path,filenames){
-  ind_blank <- grepl("blank", tolower(filenames))
+  ind_blank <- grepl("blk", tolower(filenames))
   if(any(ind_blank)){
     filenames <- c(filenames[!ind_blank],  filenames[ind_blank])
   }
   combinedChrom <- readFile(paste0(path, "/", filenames[1]))
-  t = combinedChrom[,1]
-  
+
   if(any(ind_blank)){
     #with blank file
     
@@ -88,7 +92,7 @@ combineChroms = function(path,filenames){
   }
   
   
-  chrom = data.frame(t,combinedChrom[,2])
+  chrom = data.frame(combinedChrom[,1]/length(filenames),combinedChrom[,2])
   colnames(chrom) <- c("t","abs")
   
   
@@ -142,7 +146,7 @@ Lcurve <- function(z, y, d) {
 #' @export
 VcurveWS <- function(y, lambdas) {
   
-  d <- 2  # d : filter order parameter (d = 1, 2, or 3)
+  d <- 1  # d : filter order parameter (d = 1, 2, or 3)
   
   Ps <- numeric(length(lambdas))  # store penalties for each lambda
   Rs <- numeric(length(lambdas))  # store residuals for each lambda
@@ -563,10 +567,12 @@ criticalResolution <-  function(coeffs){
 #' 
 #' @author Emery Bosten
 #' @export
-peakProcess = function(x,y,baselineCorrect=F,height_ratio=150,minimum_depht=0.005, width = 0.05){
-  ########################
-  ## DATA PREPROCESSING ##
-  ########################
+peakProcess = function(x,y,rm_min,baselineCorrect=F,height_ratio=150,minimum_depht=0.005, width = 0.05){
+
+  #DATA PREPROCESSING #
+  rm_pts = as.integer(rm_min/x[length(x)]*length(x))
+  x = x[rm_pts :length(x)]
+  y = y[rm_pts :length(x)]
   
   ## optional ##
   if(baselineCorrect){
@@ -600,9 +606,8 @@ peakProcess = function(x,y,baselineCorrect=F,height_ratio=150,minimum_depht=0.00
     plot(x, ys, type = "l", col = "blue", main = "Baseline Correction", xlab = "x", ylab = "y")
     y = ys
   }
-  #####################
-  ## DATA PROCESSING ##
-  #####################
+
+  # DATA PROCESSING #
   
   ## automated peak detection ##
   noise_thresh = 10 # noise threshold 
@@ -634,17 +639,16 @@ peakProcess = function(x,y,baselineCorrect=F,height_ratio=150,minimum_depht=0.00
 ###################
 ## SET DIRECTORY ##
 ###################
-setwd("C:/Users/emery/OneDrive - KU Leuven/R scripts/Peak detection/data/IL-17/MeOH/")
-
+setwd("C:/Users/EBosten/OneDrive - JNJ/Documents/COSMOS project/R scripts/Peak_Detection/Data/Screening_SM3")
 
 ##########
 ## DATA ##
 ##########
 
 ## load data ##
-pathnames = c("pH 3.07/C18", "pH 3.07/CSH 18", "pH 3.07/Fluoro-Phenyl", "pH 3.07/Phenyl", "pH 4.8/C18", "pH 4.8/CSH 18", "pH 4.8/Fluoro-Phenyl", "pH 4.8/Phenyl")
+pathnames = c("pH 3.5/C1", "pH 3.5/C2", "pH 3.5/C3", "pH 3.5/C4", "pH 3.5/C5", "pH 3.5/C6", "pH 3.5/C7", "pH 3.5/C8", "pH 3.5/C9", "pH 5.1/C1", "pH 5.1/C2", "pH 5.1/C3", "pH 5.1/C4", "pH 5.1/C5", "pH 5.1/C6", "pH 5.1/C7", "pH 5.1/C8", "pH 5.1/C9", "pH 7/C1", "pH 7/C2", "pH 7/C3", "pH 7/C4", "pH 7/C5", "pH 7/C6", "pH 7/C7", "pH 7/C8", "pH 7/C9")
 nconds = length(pathnames)
-filenames = c("APIlight.arw", "Dia.arw", "SM.arw", "Blank2.arw")
+filenames = c("MIX_02_UV.CSV", "BLK_02_UV.CSV")
 chroms = list()
 for (i in 1:nconds){
   chrom = combineChroms(paste0("./",pathnames[i]), filenames)
@@ -662,15 +666,21 @@ for (i in 1:nconds){
 ##############################
 
 ## Reference chromatogram ## 
-x = chroms[13]$x
-y = chroms[14]$y
-
+x = chroms[15]$x
+y = chroms[16]$y
+rm_min = 5
+rm_pts = as.integer(rm_min/x[length(x)]*length(x))
+x = x[rm_pts :length(x)]
+y = y[rm_pts :length(x)]
 ########################
 ## DATA PREPROCESSING ##
 ########################
 
 ## optional ##
-baselineCorrect = F
+baselineCorrect = T
+
+s=Sys.time()
+
 if (baselineCorrect){
   # Baseline correction
   base_lambdas <- logspace(1, 12, 10)
@@ -691,10 +701,16 @@ if (baselineCorrect){
   # Perform baseline correction using the optimal lambda
   z <- airPLS(y, base_lambdas[ind], d, n)
   
+  e = Sys.time()
+  time.taken <- e - s
+  
   y = y - z
   plot(x,y,type="l")
+}
   
   # Noise reduction
+noiseReduct = T
+if (noiseReduct){
   WS_lambdas <- logspace(-3, 5, 25)
   ys <- VcurveWS(y, WS_lambdas) # smooth signal
   
@@ -703,14 +719,16 @@ if (baselineCorrect){
   y = ys
 }
 
+time.taken
+
 #####################
 ## DATA PROCESSING ##
 #####################
 
 ## automated peak detection ##
-noise_thresh = 10 # noise threshold 
-height_ratio = 150 # ratio with highest peak
-minimum_depht = 0.005 # threshold depth of minimum
+noise_thresh = 5 # noise threshold 
+height_ratio = 250 # ratio with highest peak
+minimum_depht = 0.001 # threshold depth of minimum
 
 return_list = peakDetect(y,x, noise_thresh, height_ratio, minimum_depht)
 
@@ -753,16 +771,20 @@ med_res
 ###################################################################
 ## Application on entire chromatogram set with preset parameters ##
 ###################################################################
-Metrics = matrix(0,3,nconds)
+Metrics = matrix(0,nconds,3)
 for (i in 1:nconds){
   x = chroms[i*2-1]$x
   y = chroms[i*2]$y
   
-  result = peakProcess(x,y,baselineCorrect,height_ratio,minimum_depht,width)
-  Metrics[1,i] =  result$numPeaks
-  Metrics[2,i] =  result$critRes
-  Metrics[3,i] =  result$medianRes
+  result = peakProcess(x,y,rm_min,baselineCorrect = T,height_ratio,minimum_depht,width)
+  Metrics[i,1] =  result$numPeaks
+  Metrics[i,2] =  result$critRes
+  Metrics[i,3] =  result$medianRes
   print(i/nconds)
 }
 Metrics
 
+tab = data.frame(pathnames,Metrics)
+colnames(tab) <- c("condition", "numPeaks", "critRes", "medianRes")
+tab <- tab[order(tab$numPeaks, tab$critRes, tab$medianRes, decreasing = TRUE),]
+write.xlsx(tab, './Metrics.xlsx')
